@@ -1,62 +1,57 @@
-# 04_apriori_proveedores_destinos.py
-
 import pandas as pd
 from mlxtend.frequent_patterns import apriori, association_rules
-from mlxtend.preprocessing import TransactionEncoder
 
 # Cargar el dataset maestro
 ruta_dataset = "datos_enriquecidos/dataset_maestro_facturas.csv"
-df = pd.read_csv(ruta_dataset, low_memory=False)
+df = pd.read_csv(ruta_dataset)
 
-# ----------------------------------------------------------
-# 1. Preparación de los datos para Apriori (proveedor y destino)
-# ----------------------------------------------------------
+# Tomar una muestra del 50% de los datos para probar
+df_sample = df.sample(frac=0.50, random_state=42)
 
-# Crear una lista de transacciones (por cada factura, los destinos y proveedores como items)
-transactions = []
+# Eliminar las filas con valores nulos
+df_transacciones = df_sample.dropna()
 
-for _, row in df.iterrows():
-    transaction = []
-    
-    # Agregar destinos y proveedores como items en la transacción
-    if pd.notna(row['destino_ciudad']):
-        transaction.append(row['destino_ciudad'])
-    
-    if pd.notna(row['proveedor_principal']):
-        transaction.append(row['proveedor_principal'])
-    
-    transactions.append(transaction)
+# Seleccionar las columnas relevantes para la asociación
+df_transacciones = df_transacciones[['proveedor_principal', 'destino_ciudad', 'genero', 'rango_edades']]
 
-# ----------------------------------------------------------
-# 2. Transformar los datos para Apriori (Transaction Encoder)
-# ----------------------------------------------------------
+# Realizamos One-Hot Encoding en lugar de Label Encoding
+df_transacciones = pd.get_dummies(df_transacciones)
 
-# Usamos TransactionEncoder para convertir las transacciones en un formato adecuado para Apriori
-te = TransactionEncoder()
-te_ary = te.fit(transactions).transform(transactions)
-df_apriori = pd.DataFrame(te_ary, columns=te.columns_)
+# Ejecutar Apriori para encontrar los conjuntos frecuentes con un soporte mínimo de 0.01
+frequent_itemsets = apriori(df_transacciones, min_support=0.01, use_colnames=True)
 
-# ----------------------------------------------------------
-# 3. Aplicar Apriori para encontrar los itemsets frecuentes
-# ----------------------------------------------------------
+# Generar las reglas de asociación
+rules = association_rules(frequent_itemsets, metric="lift", min_threshold=1.5)
 
-# Obtener itemsets frecuentes con un soporte mínimo de 0.003 (ajustamos el soporte)
-frequent_itemsets = apriori(df_apriori, min_support=0.003, use_colnames=True)
+# Mostrar todas las reglas de asociación encontradas
+print("Reglas de asociación encontradas:")
+print(rules)
 
-# ----------------------------------------------------------
-# 4. Generar reglas de asociación
-# ----------------------------------------------------------
+# Filtrar las reglas de alta confianza (mayores a 0.7)
+rules_high_confidence = rules[rules['confidence'] > 0.7]
+print("\nReglas de alta confianza:")
+print(rules_high_confidence)
 
-# Generar reglas de asociación con una confianza mínima de 0.4
-rules = association_rules(frequent_itemsets, metric="confidence", min_threshold=0.4)
+# Filtrar las reglas con alto lift (mayores a 3)
+rules_high_lift = rules[rules['lift'] > 3]
+print("\nReglas con alto lift:")
+print(rules_high_lift)
 
-# ----------------------------------------------------------
-# 5. Visualizar las reglas
-# ----------------------------------------------------------
+# Probar con diferentes valores de min_support y min_threshold
+# Cambiar el min_support a 0.02 y min_threshold a 1.5 para obtener reglas más comunes y fuertes
+frequent_itemsets_2 = apriori(df_transacciones, min_support=0.02, use_colnames=True)
+rules_2 = association_rules(frequent_itemsets_2, metric="lift", min_threshold=1.5)
 
-# Mostrar las primeras 10 reglas con soporte, confianza y lift
-print("\nPrimeras 10 reglas de asociación encontradas:")
-print(rules[['antecedents', 'consequents', 'support', 'confidence', 'lift']].head(10))
+# Mostrar las nuevas reglas
+print("\nNuevas reglas con min_support=0.02 y min_threshold=1.5:")
+print(rules_2)
 
-# Guardar las reglas en un archivo CSV (opcional)
-rules.to_csv("reglas_asociacion_proveedores_destinos.csv", index=False)
+# Filtrar las nuevas reglas de alta confianza y alto lift
+rules_high_confidence_2 = rules_2[rules_2['confidence'] > 0.7]
+rules_high_lift_2 = rules_2[rules_2['lift'] > 3]
+
+print("\nNuevas reglas de alta confianza:")
+print(rules_high_confidence_2)
+
+print("\nNuevas reglas con alto lift:")
+print(rules_high_lift_2)
